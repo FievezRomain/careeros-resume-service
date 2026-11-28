@@ -19,8 +19,9 @@ See [docs/overview.md](docs/overview.md) and the central [CareerOS workspace](ht
 
 ## Local development
 
-Configure the OIDC settings and the service-owned PostgreSQL database using
-`.env.example`. The V1-027 API exposes a version and artifact metadata registry.
+Configure OIDC and the service-owned PostgreSQL database using `.env.example`.
+For PDF and DOCX exports, configure the Profile API and the private S3 bucket
+described in [the service overview](docs/overview.md).
 
 ```text
 uv sync --locked --all-groups

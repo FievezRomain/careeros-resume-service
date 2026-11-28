@@ -4,6 +4,8 @@ from uuid import UUID
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
+ArtifactFormat = Literal["pdf", "docx"]
+
 
 class Contract(BaseModel):
     model_config = ConfigDict(
@@ -12,7 +14,7 @@ class Contract(BaseModel):
 
 
 class Artifact(Contract):
-    format: Literal["pdf", "docx"]
+    format: ArtifactFormat
     object_key: UUID
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     byte_size: int = Field(strict=True, gt=0, le=2**63 - 1)
