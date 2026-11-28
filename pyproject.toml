@@ -32,3 +32,39 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.careeros.quality]
+package = "src/careeros_resume"
+persistence = true
+domain = "src/careeros_resume/domain"
+application = "src/careeros_resume/application"
+ports = "src/careeros_resume/application"
+adapters = "src/careeros_resume/adapters"
+composition_root = "src/careeros_resume/bootstrap.py"
+migrations = "src/careeros_resume/adapters/postgresql/migrations"
+migration_runner = "src/careeros_resume/adapters/postgresql/migrations/runner.py"
+
+[tool.careeros.quality.commands]
+format = "uv run ruff format --check ."
+lint = "uv run ruff check ."
+type = "uv run mypy src tests"
+test = "uv run pytest"
+secret = "gitleaks detect --redact --no-banner"
+security = "uv run pip-audit && uv run bandit -q -r src"
+migrate_up = "uv run python -m careeros_resume.adapters.postgresql.migrations.runner upgrade"
+migrate_down = "uv run python -m careeros_resume.adapters.postgresql.migrations.runner downgrade"
+
+[tool.careeros.quality.logging]
+structured = true
+correlation = true
+redaction = true
+
+[tool.careeros.quality.evidence]
+unit = "tests/test_domain.py"
+integration = "tests/test_http.py"
+contract = "tests/test_http.py"
+health = "tests/test_http.py"
+logging = "tests/test_http.py"
+security = "tests/test_http.py"
+migrations = "tests/test_store.py"
+startup_migrations = "tests/test_http.py"

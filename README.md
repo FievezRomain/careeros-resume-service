@@ -17,9 +17,16 @@ This public repository must never contain secrets, real resumes, real applicatio
 
 See [docs/overview.md](docs/overview.md) and the central [CareerOS workspace](https://github.com/FievezRomain/careeros-workspace).
 
-## Status
+## Local development
 
-Architecture and security baseline. Functional implementation will be added incrementally with tests and versioned contracts.
+Configure the OIDC settings and the service-owned PostgreSQL database using
+`.env.example`. The V1-027 API exposes a version and artifact metadata registry.
+
+```text
+uv sync --locked --all-groups
+uv run uvicorn careeros_resume.bootstrap:create --factory --no-access-log
+uv run pytest
+```
 
 ## License
 
