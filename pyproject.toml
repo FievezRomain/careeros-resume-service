@@ -1,0 +1,34 @@
+[project]
+name = "careeros-resume-service"
+version = "0.1.0"
+description = "CareerOS immutable resume version registry"
+requires-python = ">=3.14,<3.15"
+dependencies = ["fastapi>=0.165,<0.166", "httpx2>=2.16,<3", "psycopg[binary]>=3.3,<4", "pydantic>=2.12,<3", "pydantic-settings>=2.16,<3", "pyjwt[crypto]>=2.10,<3", "sqlalchemy>=2.0,<3", "uvicorn>=0.54,<0.55"]
+
+[dependency-groups]
+dev = ["bandit>=1.9,<2", "mypy>=1.19,<2", "pip-audit>=2.10,<3", "pytest>=9.2,<10", "ruff>=0.14,<0.15"]
+
+[build-system]
+requires = ["hatchling>=1.28,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/careeros_resume"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-config --strict-markers"
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+mypy_path = "src"
+explicit_package_bases = true
+plugins = ["pydantic.mypy"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
