@@ -10,9 +10,15 @@ from fastapi import FastAPI, Header, HTTPException, Path, Query, Request, Respon
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from starlette.middleware.base import RequestResponseEndpoint
 
+from careeros_resume.application.drafts import (
+    DraftInputInvalid,
+    GenerateDraft,
+    SourceInvalid,
+    SourceUnavailable,
+)
 from careeros_resume.application.versions import (
     Actor,
     Denied,
@@ -21,6 +27,7 @@ from careeros_resume.application.versions import (
     StartResume,
     Versions,
 )
+from careeros_resume.domain.draft import DraftRequest, ResumeDraft
 from careeros_resume.domain.version import Contract, Registration, Version, VersionPage
 
 log = logging.getLogger("careeros.resume")
@@ -49,9 +56,11 @@ class Problem(Contract):
 details = {
     401: "A valid bearer token is required.",
     403: "The required resume scope is missing.",
-    404: "The resume version is unavailable to the caller.",
+    404: "The requested resource is unavailable to the caller.",
     409: "The registration key is already associated with different metadata.",
-    422: "The resume registration or request parameters are invalid.",
+    422: "The resume request is invalid or its selected sources are ineligible.",
+    502: "A draft source returned invalid data.",
+    503: "A draft source is temporarily unavailable.",
 }
 
 
@@ -85,6 +94,8 @@ def create_app(
     startup: StartResume,
     verifier: TokenVerifier,
     close: Callable[[], None] | None = None,
+    *,
+    drafts: GenerateDraft | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -130,15 +141,20 @@ def create_app(
     async def conflict(request: Request, _: RegistrationConflict) -> Response:
         return problem(request, 409)
 
-    def authenticate(
+    def authenticate_session(
         credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer)],
-    ) -> Actor:
+    ) -> tuple[Actor, SecretStr]:
         try:
             if credentials is not None:
-                return verifier.verify(credentials.credentials)
+                return verifier.verify(credentials.credentials), SecretStr(credentials.credentials)
         except ValueError:
             pass
         raise HTTPException(401, headers={"WWW-Authenticate": "Bearer"})
+
+    def authenticate(
+        session: Annotated[tuple[Actor, SecretStr], Security(authenticate_session)],
+    ) -> Actor:
+        return session[0]
 
     @app.get("/health/live")
     def live() -> Health:
@@ -147,6 +163,24 @@ def create_app(
     @app.get("/health/ready")
     def ready() -> Health:
         return Health(status="ready")
+
+    @app.post("/v1/resume-drafts", responses=error_docs(401, 403, 404, 422, 502, 503))
+    def generate_draft(
+        body: DraftRequest,
+        request: Request,
+        session: Annotated[tuple[Actor, SecretStr], Security(authenticate_session)],
+    ) -> ResumeDraft:
+        if drafts is None:
+            raise HTTPException(503)
+        actor, credential = session
+        try:
+            return drafts.execute(actor, credential, body, request.state.correlation_id)
+        except DraftInputInvalid:
+            raise HTTPException(422) from None
+        except SourceInvalid:
+            raise HTTPException(502) from None
+        except SourceUnavailable:
+            raise HTTPException(503) from None
 
     @app.post(
         "/v1/resumes/{resume_id}/versions",
