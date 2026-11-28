@@ -41,3 +41,9 @@ jobs:
       - run: uv run bandit -q -r src
       - run: uv run python -m careeros_resume.adapters.postgresql.migrations.runner upgrade
       - run: uv run python -m careeros_resume.adapters.postgresql.migrations.runner downgrade
+      - uses: actions/checkout@v4
+        with:
+          repository: FievezRomain/careeros-workspace
+          ref: 7f891a311e6448baaf83bd677899676fd5a8a4f5
+          path: .careeros-workspace
+      - run: uv run python .careeros-workspace/scripts/check_service_quality.py .
