@@ -18,9 +18,12 @@ node_modules/
 dist/
 build/
 coverage/
+.venv/
 __pycache__/
 .pytest_cache/
-.venv/
+.mypy_cache/
+.ruff_cache/
+.careeros-workspace/
 .idea/
 .vscode/
 .DS_Store
