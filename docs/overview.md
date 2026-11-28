@@ -52,6 +52,33 @@ responses return 502, while source outages or missing source configuration
 return 503. Configure `PROFILE_API_BASE_URL` and, for targeted drafts,
 `JOB_API_BASE_URL`. Drafts are generated on demand for later rendering.
 
+## PDF and DOCX exports
+
+`POST /v1/resumes/{resume_id}/exports` takes the same source identifiers as
+`/v1/resume-drafts` plus a UUID `Idempotency-Key`. It requires the draft scopes
+and `resume:versions:write`. The service renders both formats and checks text
+extraction in reading order before recording their SHA-256 digests, sizes and
+object keys on one version. The response is 201 for creation or 200 for a replay.
+
+The single-column template uses headings and confirmed profile content. The
+bundled PDF font supports a limited character set. Set `RESUME_PDF_FONT` to a
+TrueType font that covers the requested text. Characters that fail the
+extraction check return 422.
+
+Set `RESUME_S3_BUCKET` to a private bucket supporting conditional creation
+via `If-None-Match: *`. Configure `RESUME_S3_ENDPOINT` for SeaweedFS and use the
+SDK credential chain. The bucket policy grants read and conditional write access
+to the service identity. Objects are scoped to tenant, account and resume.
+Retry an interrupted request with the same key to complete the pair; the
+registry publishes it once both objects exist. A changed replay returns 409.
+An abandoned request can leave a partial upload in the private bucket for
+retention cleanup.
+
+`GET /v1/resumes/{resume_id}/versions/{number}/artifacts/{format}` returns an
+owned artifact after validating its stored size and SHA-256. It requires
+`resume:versions:read`. A missing artifact returns 404 and damaged content
+returns 502. Each artifact is bounded to 16 MiB.
+
 ## Contract rules
 
 - APIs and events are versioned.

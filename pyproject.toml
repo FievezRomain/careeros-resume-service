@@ -3,10 +3,31 @@ name = "careeros-resume-service"
 version = "0.1.0"
 description = "CareerOS immutable resume version registry"
 requires-python = ">=3.14,<3.15"
-dependencies = ["fastapi>=0.165,<0.166", "httpx2>=2.16,<3", "psycopg[binary]>=3.3,<4", "pydantic>=2.12,<3", "pydantic-settings>=2.16,<3", "pyjwt[crypto]>=2.10,<3", "sqlalchemy>=2.0,<3", "uvicorn>=0.54,<0.55"]
+dependencies = [
+    "boto3>=1.40,<2",
+    "fastapi>=0.165,<0.166",
+    "httpx2>=2.16,<3",
+    "psycopg[binary]>=3.3,<4",
+    "pydantic>=2.12,<3",
+    "pydantic-settings>=2.16,<3",
+    "pyjwt[crypto]>=2.10,<3",
+    "pypdf>=6.0,<7",
+    "python-docx>=1.2,<2",
+    "reportlab>=4.4,<5",
+    "sqlalchemy>=2.0,<3",
+    "uvicorn>=0.54,<0.55",
+]
 
 [dependency-groups]
-dev = ["bandit>=1.9,<2", "mypy>=1.19,<2", "pip-audit>=2.10,<3", "pytest>=9.2,<10", "ruff>=0.14,<0.15"]
+dev = [
+    "bandit>=1.9,<2",
+    "boto3-stubs[s3]>=1.40,<2",
+    "mypy>=1.19,<2",
+    "pip-audit>=2.10,<3",
+    "pytest>=9.2,<10",
+    "ruff>=0.14,<0.15",
+    "types-reportlab>=4.4,<5",
+]
 
 [build-system]
 requires = ["hatchling>=1.28,<2"]

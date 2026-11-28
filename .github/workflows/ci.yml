@@ -26,6 +26,7 @@ jobs:
     env:
       RESUME_DATABASE_URL: postgresql+psycopg://careeros_resume:test-only@localhost:5432/careeros_resume_test
       TEST_RESUME_DATABASE_URL: postgresql+psycopg://careeros_resume:test-only@localhost:5432/careeros_resume_test
+      TEST_RESUME_S3_ENDPOINT: http://127.0.0.1:8333
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,6 +37,19 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy src tests
+      - name: Start isolated SeaweedFS
+        run: |
+          docker run --detach --name careeros-resume-s3 --publish 127.0.0.1:8333:8333 \
+            -e AWS_ACCESS_KEY_ID=fixture-access -e AWS_SECRET_ACCESS_KEY=fixture-secret \
+            -e S3_BUCKET=careeros-resumes-test chrislusf/seaweedfs:4.53 mini -dir=/data
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8333/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs careeros-resume-s3
+          exit 1
       - run: uv run pytest
       - run: uv run pip-audit
       - run: uv run bandit -q -r src

@@ -19,6 +19,7 @@ from careeros_resume.application.drafts import (
     SourceInvalid,
     SourceUnavailable,
 )
+from careeros_resume.application.exports import MEDIA_TYPES, ResumeExports
 from careeros_resume.application.versions import (
     Actor,
     Denied,
@@ -28,7 +29,13 @@ from careeros_resume.application.versions import (
     Versions,
 )
 from careeros_resume.domain.draft import DraftRequest, ResumeDraft
-from careeros_resume.domain.version import Contract, Registration, Version, VersionPage
+from careeros_resume.domain.version import (
+    ArtifactFormat,
+    Contract,
+    Registration,
+    Version,
+    VersionPage,
+)
 
 log = logging.getLogger("careeros.resume")
 bearer = HTTPBearer(auto_error=False)
@@ -59,8 +66,8 @@ details = {
     404: "The requested resource is unavailable to the caller.",
     409: "The registration key is already associated with different metadata.",
     422: "The resume request is invalid or its selected sources are ineligible.",
-    502: "A draft source returned invalid data.",
-    503: "A draft source is temporarily unavailable.",
+    502: "A resume dependency returned invalid data or an artifact failed its integrity check.",
+    503: "A required resume dependency is temporarily unavailable.",
 }
 
 
@@ -96,6 +103,7 @@ def create_app(
     close: Callable[[], None] | None = None,
     *,
     drafts: GenerateDraft | None = None,
+    exports: ResumeExports | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -141,6 +149,18 @@ def create_app(
     async def conflict(request: Request, _: RegistrationConflict) -> Response:
         return problem(request, 409)
 
+    @app.exception_handler(DraftInputInvalid)
+    async def invalid_draft(request: Request, _: DraftInputInvalid) -> Response:
+        return problem(request, 422)
+
+    @app.exception_handler(SourceInvalid)
+    async def invalid_source(request: Request, _: SourceInvalid) -> Response:
+        return problem(request, 502)
+
+    @app.exception_handler(SourceUnavailable)
+    async def unavailable_source(request: Request, _: SourceUnavailable) -> Response:
+        return problem(request, 503)
+
     def authenticate_session(
         credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer)],
     ) -> tuple[Actor, SecretStr]:
@@ -173,14 +193,61 @@ def create_app(
         if drafts is None:
             raise HTTPException(503)
         actor, credential = session
-        try:
-            return drafts.execute(actor, credential, body, request.state.correlation_id)
-        except DraftInputInvalid:
-            raise HTTPException(422) from None
-        except SourceInvalid:
-            raise HTTPException(502) from None
-        except SourceUnavailable:
-            raise HTTPException(503) from None
+        return drafts.execute(actor, credential, body, request.state.correlation_id)
+
+    @app.post(
+        "/v1/resumes/{resume_id}/exports",
+        status_code=201,
+        responses={
+            200: {"model": Version, "description": "Idempotent replay"},
+            **error_docs(401, 403, 404, 409, 422, 502, 503),
+        },
+    )
+    def export_resume(
+        resume_id: UUID,
+        body: DraftRequest,
+        request: Request,
+        response: Response,
+        key: Annotated[UUID, Header(alias="Idempotency-Key")],
+        session: Annotated[tuple[Actor, SecretStr], Security(authenticate_session)],
+    ) -> Version:
+        if exports is None:
+            raise HTTPException(503)
+        actor, credential = session
+        version, created = exports.create(
+            actor, credential, resume_id, key, body, request.state.correlation_id
+        )
+        response.status_code = 201 if created else 200
+        response.headers["Location"] = f"/v1/resumes/{resume_id}/versions/{version.version}"
+        return version
+
+    @app.get(
+        "/v1/resumes/{resume_id}/versions/{number}/artifacts/{format}",
+        response_class=Response,
+        responses={
+            200: {
+                "content": {
+                    media_type: {"schema": {"type": "string", "format": "binary"}}
+                    for media_type in MEDIA_TYPES.values()
+                }
+            },
+            **error_docs(401, 403, 404, 422, 502, 503),
+        },
+    )
+    def download_artifact(
+        resume_id: UUID,
+        number: Number,
+        format: ArtifactFormat,
+        actor: Annotated[Actor, Security(authenticate)],
+    ) -> Response:
+        if exports is None:
+            raise HTTPException(503)
+        data = exports.download(actor, resume_id, number, format)
+        return Response(
+            data,
+            media_type=MEDIA_TYPES[format],
+            headers={"Content-Disposition": f'attachment; filename="resume.{format}"'},
+        )
 
     @app.post(
         "/v1/resumes/{resume_id}/versions",
