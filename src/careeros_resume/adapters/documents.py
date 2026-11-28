@@ -1,10 +1,10 @@
 from datetime import UTC, datetime
 from hashlib import sha256
+from html import escape
 from importlib.resources import as_file, files
 from io import BytesIO
 from pathlib import Path
 from threading import Lock
-from xml.sax.saxutils import escape
 from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 from docx import Document
@@ -116,7 +116,10 @@ class DocumentRenderer:
             for index, (size, space) in enumerate(((22, 0), (14, 10), (10, 0)))
         ]
         paragraphs: list[Flowable] = [
-            Paragraph("<br/>".join(escape(line) for line in text.splitlines()), styles[level])
+            Paragraph(
+                "<br/>".join(escape(line, quote=False) for line in text.splitlines()),
+                styles[level],
+            )
             for level, text in blocks
         ]
         with PDF_LOCK:
